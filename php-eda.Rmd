@@ -48,6 +48,11 @@ df_units$number_of_market_rent_units <- as.numeric(df_units$number_of_market_ren
 df_units$number_of_subsidized_units <- as.numeric(df_units$number_of_subsidized_units)
 ```
 
+Initializing some useful functions.
+```{r}
+```
+
+
 In Toronto, neighbourhoods are organized by ward. The Parkdale-High Park ward is number 4.
 
 ```{r}
@@ -91,7 +96,8 @@ df_building |>
     )
 ```
 
-TCHC is the largest provider with 16 buildings, followed by PNP providers running 8, and CO-OP providers running 2. Only TCHC and Villa Otthon run more than 1 building. 
+TCHC is the largest provider with 16 buildings, followed by Public/Non-profit (PNP) providers running 8, and CO-OP providers running 2. Only TCHC and Villa Otthon run more than 1 building. 
+
 
 ```{r}
 # prep units overall in PHP
@@ -101,6 +107,110 @@ df_units <- df_units |> filter(building_complex_name %in% php_buildings)
 ```
 
 There are 72 unit observations for the 26 buildings.
+
+Add provider type into df_unit
+```{r}
+# for each building complex, get the provider type from the df_building data
+# effectively a join operation, use merge with all.x for a left join
+df_units <- merge(df_units, df_building[,c("building_complex_name", "provider_type")], by="building_complex_name", )
+
+```
+
+Of the 26 buildings, how do the values vary? Note, units can house differing amounts of people.
+```{r}
+# all buildings
+df_units |>
+  select(building_complex_name, number_of_market_rent_units, number_of_subsidized_units) |>
+  pivot_longer(
+    starts_with("number_of"),
+    names_to="unit_type",
+    values_to ="unit_count"
+  ) |>
+  group_by(building_complex_name, unit_type) |>
+  summarize(
+    unit_count = sum(unit_count)
+  ) |>
+  ggplot(aes(x=building_complex_name, y=unit_count, fill=unit_type)) +
+    geom_col(position="dodge") +
+    labs(
+      title="Market vs. subsidized units by building in PHP",
+      x="Building Complex",
+      y="Unit count",
+      fill="Unit type"
+    ) +
+    coord_flip()
+
+# TCHC buildings)
+df_units |>
+  select(building_complex_name, provider_type, number_of_market_rent_units, number_of_subsidized_units) |>
+  filter(provider_type == "TCHC") |>
+  pivot_longer(
+    starts_with("number_of"),
+    names_to="unit_type",
+    values_to ="unit_count"
+  ) |>
+  group_by(building_complex_name, unit_type) |>
+  summarize(
+    unit_count = sum(unit_count)
+  ) |>
+  ggplot(aes(x=building_complex_name, y=unit_count, fill=unit_type)) +
+    geom_col(position="dodge") +
+    labs(
+      title="THCH market vs. subsidized units by building",
+      x="Building Complex",
+      y="Unit count",
+      fill="Unit type"
+    ) +
+    coord_flip()
+
+# PNP buildings
+df_units |>
+  select(building_complex_name, provider_type, number_of_market_rent_units, number_of_subsidized_units) |>
+  filter(provider_type == "PNP") |>
+  pivot_longer(
+    starts_with("number_of"),
+    names_to="unit_type",
+    values_to ="unit_count"
+  ) |>
+  group_by(building_complex_name, unit_type) |>
+  summarize(
+    unit_count = sum(unit_count)
+  ) |>
+  ggplot(aes(x=building_complex_name, y=unit_count, fill=unit_type)) +
+    geom_col(position="dodge") +
+    labs(
+      title="PNP market vs. subsidized units by building",
+      x="Building Complex",
+      y="Unit count",
+      fill="Unit type"
+    ) +
+    coord_flip()
+
+# CO-OP buildings
+df_units |>
+  select(building_complex_name, provider_type, number_of_market_rent_units, number_of_subsidized_units) |>
+  filter(provider_type == "CO-OP") |>
+  pivot_longer(
+    starts_with("number_of"),
+    names_to="unit_type",
+    values_to ="unit_count"
+  ) |>
+  group_by(building_complex_name, unit_type) |>
+  summarize(
+    unit_count = sum(unit_count)
+  ) |>
+  ggplot(aes(x=building_complex_name, y=unit_count, fill=unit_type)) +
+    geom_col(position="dodge") +
+    labs(
+      title="Co-op market vs. subsidized units by building",
+      x="Building Complex",
+      y="Unit count",
+      fill="Unit type"
+    ) +
+    coord_flip()
+```
+
+
 
 ```{r}
 # TODO: Fix scales of geom_col() and fix order
@@ -117,40 +227,117 @@ df_units |>
 
 # market units by unit size
 df_units |> 
-  select(unit_size, number_of_market_rent_units) |>
-  group_by(unit_size) |>
+  select(unit_size, number_of_market_rent_units, provider_type) |>
+  group_by(unit_size, provider_type) |>
   summarize(
     number_of_market_rent_units = sum(number_of_market_rent_units)
   ) |>
-  ggplot(aes(x=unit_size, y=number_of_market_rent_units)) +
-    geom_col(just=1) +
-    coord_flip() + 
+  ggplot(aes(x=unit_size, y=number_of_market_rent_units, fill=provider_type)) +
+    geom_col() +
+    coord_polar("x", start=0) + 
     labs(
       title="1 and 2-bedroom units provide the most market housing",
       x="Unit size",
       y="Number of subsidized rental units"
-    )
+    ) +
+    geom_text(aes(label=number_of_market_rent_units), position = position_stack(vjust = 0.5)) +
+    scale_fill_brewer() +
+    theme(axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title = element_blank(),
+          panel.background = element_rect(fill = "#ebf2ff"),
+          plot.background = element_rect(fill = "#ebf2ff"),
+          legend.background = element_rect(fill = "#ebf2ff"))
 
 # subsidized units by unit size
 df_units |> 
-  select(unit_size, number_of_subsidized_units) |>
-  group_by(unit_size) |>
+  select(unit_size, number_of_subsidized_units, provider_type) |>
+  group_by(unit_size, provider_type) |>
   summarize(
     number_of_subsidized_units = sum(number_of_subsidized_units)
   ) |>
-  ggplot(aes(x=unit_size, y=number_of_subsidized_units)) +
-    geom_col(just=1) +
-    coord_flip() + 
+  ggplot(aes(x=unit_size, y=number_of_subsidized_units, fill=provider_type)) +
+    geom_col() +
+    coord_polar("x", start=0) + 
     labs(
       title="1 bedroom units provide by far the most subsidized housing",
       x="Unit size",
       y="Number of subsidized rental units"
-    )
+    ) +
+    geom_text(aes(label=number_of_subsidized_units), position = position_stack(vjust = 0.5)) +
+    scale_fill_brewer() +
+    theme(axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title = element_blank(),
+          panel.background = element_rect(fill = "#ebf2ff"),
+          plot.background = element_rect(fill = "#ebf2ff"),
+          legend.background = element_rect(fill = "#ebf2ff"))
 ```
 
 There are 3938 housing units in the 26 buildings in PHP. Of these units, 17% are market housing, and the other 83% are subsidized. 
 
 The market housing is mainly in 1 and 2-bedroom units, while the subsidized housing is overwhelmingly in 1-bedroom units. 
+
+```{r}
+# subsidized housing only
+# breakdown of tchc buildings
+sub_units <- df_units |>
+  select(building_complex_name, provider_type, unit_size, number_of_subsidized_units) |>
+  filter(number_of_subsidized_units != 0)
+
+sub_units |>
+  ggplot(aes(x=building_complex_name, y=number_of_subsidized_units, fill=unit_size)) +
+    geom_col(position=position_stack(reverse=TRUE)) +
+    labs(
+      title="Overall subsidized housing unit count by unit size"
+    ) +
+    coord_flip()
+
+sub_units |>
+  filter(provider_type=="TCHC") |>
+  ggplot(aes(x=building_complex_name, y=number_of_subsidized_units, fill=unit_size)) +
+    geom_col(position=position_stack(reverse=TRUE)) +
+    labs(
+      title="TCHC subsidized housing unit count by unit size"
+    ) +
+    coord_flip()
+  
+sub_units |>
+  filter(provider_type=="PNP") |>
+  ggplot(aes(x=building_complex_name, y=number_of_subsidized_units, fill=unit_size)) +
+    geom_col(position=position_stack(reverse=TRUE)) +
+    labs(
+      title="PNP subsidized housing unit count by unit size"
+    ) +
+    coord_flip()
+  
+sub_units |>
+  filter(provider_type=="CO-OP") |>
+  ggplot(aes(x=building_complex_name, y=number_of_subsidized_units, fill=unit_size)) +
+    geom_col(position=position_stack(reverse=TRUE)) +
+    labs(
+      title="Co-op subsidized housing unit count by unit size"
+    ) +
+    coord_flip()
+```
+
+71 of the unit entries have subsidized housing, the others are when a unit size is offered but only for market housing. 
+
+```{r}
+# density of subsidized units
+sub_units |> 
+  filter(number_of_subsidized_units > 0) |>
+  group_by(building_complex_name, unit_size) |>
+  summarize(number_of_subsidized_units=sum(number_of_subsidized_units)) |>
+  ggplot(aes(x=number_of_subsidized_units, fill=unit_size)) +
+    geom_histogram(binwidth=5) +
+    stat_bin(binwidth=5, geom="text", size=5, color="white", aes(label=..count.., group=unit_size), position=position_stack(0.5)) +
+    theme_bw() +
+    labs(
+      title="Most unit type variation is at lower numbers of units"
+    )
+
+```
 
 ```{r}
 # Overall stats
@@ -176,8 +363,6 @@ df_units_overall |>
     ) +
     geom_text(aes(label=housing_capacity), position = position_stack(vjust = 0.5)) +
     theme_void()
-
-
 ```
 
 Visualization of the previous statistics that show a large majority of units are subsidized. 
@@ -186,11 +371,15 @@ Visualization of the previous statistics that show a large majority of units are
 # Housing distribution for TCHC
 # prep units overall in PHP
 
-housing_dist <- function(provider) {
+get_provider_buildings <- function(provider) {
   provider_buildings <- df_building |> 
     filter(provider_type==provider) |> 
     select(building_complex_name) |>  
     pull()
+}
+
+housing_dist <- function(provider) {
+  provider_buildings <- get_provider_buildings(provider)
   
   df_prov_units <- df_units |> 
     filter(building_complex_name %in% provider_buildings) |>
@@ -222,6 +411,18 @@ housing_dist("CO-OP")
 ```
 
 TCHC has the highest ratio of subsidized units to market units, followed by PNP providers, and then CO-OP providers, overall. 
+
+Does a particular provider type create more of certain subsidized units?
+```{r}
+check_var <- function(provider) {
+  print("In function")
+}
+
+# 1. Need subsidized unit data, classified by provider type
+# 2. Bar plot with % of units 
+
+
+```
 
 ## Current insights
 - 26 different buildings provide subsidized housing in PHP
